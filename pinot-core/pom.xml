@@ -276,6 +276,11 @@
       <artifactId>lucene-analyzers-common</artifactId>
       <version>${lucene.version}</version>
     </dependency>
+    <dependency>
+      <groupId>net.openhft</groupId>
+      <artifactId>chronicle-map</artifactId>
+      <version>3.24ea3</version>
+    </dependency>
   </dependencies>
   <profiles>
     <profile>

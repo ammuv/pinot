@@ -54,9 +54,13 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.openhft.chronicle.set.ChronicleSet;
+import net.openhft.chronicle.set.ChronicleSetBuilder;
 import org.apache.datasketches.kll.KllDoublesSketch;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.theta.Sketch;
@@ -134,7 +138,8 @@ public class ObjectSerDeUtils {
     PinotFourthMoment(34),
     ArgMinMaxObject(35),
     KllDataSketch(36),
-    IntegerTupleSketch(37);
+    IntegerTupleSketch(37),
+    Set(38);
 
     private final int _value;
 
@@ -226,6 +231,8 @@ public class ObjectSerDeUtils {
         return ObjectType.IntegerTupleSketch;
       } else if (value instanceof ArgMinMaxObject) {
         return ObjectType.ArgMinMaxObject;
+      } else if (value instanceof Set) { //for now just has ChronicleSet<Integer> need to extend to other fixed length data types
+        return ObjectType.Set;
       } else {
         throw new IllegalArgumentException("Unsupported type of value: " + value.getClass().getSimpleName());
       }
@@ -1285,6 +1292,39 @@ public class ObjectSerDeUtils {
         }
       };
 
+
+  public static final ObjectSerDe<Set> SET_SER_DE = new ObjectSerDe<Set>() {
+    @Override
+    public byte[] serialize(Set set) {
+      Set<Integer> intSet = (Set<Integer>) set;
+      int size = intSet.size();
+      byte[] bytes = new byte[Integer.BYTES + size * Integer.BYTES];
+      ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+      byteBuffer.putInt(size);
+      Iterator<Integer> iterator = intSet.iterator();
+      while (iterator.hasNext()) {
+        byteBuffer.putInt(iterator.next());
+      }
+      return bytes;
+    }
+
+    @Override
+    public Set deserialize(byte[] bytes) {
+      return deserialize(ByteBuffer.wrap(bytes));
+    }
+
+    @Override
+    public Set deserialize(ByteBuffer byteBuffer) {
+      int size = byteBuffer.getInt();
+      Set<Integer> intSet = ChronicleSetBuilder.of(Integer.class).entries(5000).create();
+      for (int i = 0; i < size; i++) {
+        intSet.add(byteBuffer.getInt());
+      }
+      return intSet;
+    }
+  };
+
+
   // NOTE: DO NOT change the order, it has to be the same order as the ObjectType
   //@formatter:off
   private static final ObjectSerDe[] SER_DES = {
@@ -1326,6 +1366,7 @@ public class ObjectSerDeUtils {
       ARG_MIN_MAX_OBJECT_SER_DE,
       KLL_SKETCH_SER_DE,
       DATA_SKETCH_INT_TUPLE_SER_DE,
+      SET_SER_DE,
   };
   //@formatter:on
 

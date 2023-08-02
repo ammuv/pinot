@@ -555,6 +555,11 @@
         <version>8.2.3</version>
       </dependency>
       <dependency>
+        <groupId>net.openhft</groupId>
+        <artifactId>chronicle-map</artifactId>
+        <version>3.24ea3</version>
+      </dependency>
+      <dependency>
         <groupId>joda-time</groupId>
         <artifactId>joda-time</artifactId>
         <version>2.11.2</version>

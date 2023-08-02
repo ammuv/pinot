@@ -18,7 +18,11 @@
  */
 package org.apache.pinot.core.query.aggregation.function;
 
+import it.unimi.dsi.fastutil.doubles.DoubleOpenHashSet;
+import it.unimi.dsi.fastutil.floats.FloatOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import java.util.Map;
 import java.util.Set;
 import org.apache.pinot.common.request.context.ExpressionContext;
@@ -28,7 +32,6 @@ import org.apache.pinot.core.query.aggregation.AggregationResultHolder;
 import org.apache.pinot.core.query.aggregation.ObjectAggregationResultHolder;
 import org.apache.pinot.core.query.aggregation.groupby.GroupByResultHolder;
 import org.apache.pinot.core.query.aggregation.groupby.ObjectGroupByResultHolder;
-import org.apache.pinot.core.query.aggregation.utils.HashSetFactory;
 import org.apache.pinot.segment.spi.AggregationFunctionType;
 import org.apache.pinot.segment.spi.index.reader.Dictionary;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
@@ -42,12 +45,11 @@ import org.roaringbitmap.RoaringBitmap;
  * functions.
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public abstract class BaseDistinctAggregateAggregationFunction<T extends Comparable>
+public abstract class OldBaseDistinctAggregateAggregationFunction<T extends Comparable>
     extends BaseSingleInputAggregationFunction<Set, T> {
   private final AggregationFunctionType _functionType;
-  private static final HashSetFactory _hashSetFactory = new HashSetFactory();
 
-  protected BaseDistinctAggregateAggregationFunction(ExpressionContext expression,
+  protected OldBaseDistinctAggregateAggregationFunction(ExpressionContext expression,
       AggregationFunctionType aggregationFunctionType) {
     super(expression);
     _functionType = aggregationFunctionType;
@@ -152,40 +154,46 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
     Set valueSet = getValueSet(aggregationResultHolder, storedType);
     switch (storedType) {
       case INT:
+        IntOpenHashSet intSet = (IntOpenHashSet) valueSet;
         int[] intValues = blockValSet.getIntValuesSV();
         for (int i = 0; i < length; i++) {
-          ((Set<Integer>)valueSet).add(intValues[i]);
+          intSet.add(intValues[i]);
         }
         break;
       case LONG:
+        LongOpenHashSet longSet = (LongOpenHashSet) valueSet;
         long[] longValues = blockValSet.getLongValuesSV();
         for (int i = 0; i < length; i++) {
-          valueSet.add(longValues[i]);
+          longSet.add(longValues[i]);
         }
         break;
       case FLOAT:
+        FloatOpenHashSet floatSet = (FloatOpenHashSet) valueSet;
         float[] floatValues = blockValSet.getFloatValuesSV();
         for (int i = 0; i < length; i++) {
-          valueSet.add(floatValues[i]);
+          floatSet.add(floatValues[i]);
         }
         break;
       case DOUBLE:
+        DoubleOpenHashSet doubleSet = (DoubleOpenHashSet) valueSet;
         double[] doubleValues = blockValSet.getDoubleValuesSV();
         for (int i = 0; i < length; i++) {
-          valueSet.add(doubleValues[i]);
+          doubleSet.add(doubleValues[i]);
         }
         break;
       case STRING:
+        ObjectOpenHashSet<String> stringSet = (ObjectOpenHashSet<String>) valueSet;
         String[] stringValues = blockValSet.getStringValuesSV();
         //noinspection ManualArrayToCollectionCopy
         for (int i = 0; i < length; i++) {
-          valueSet.add(stringValues[i]);
+          stringSet.add(stringValues[i]);
         }
         break;
       case BYTES:
+        ObjectOpenHashSet<ByteArray> bytesSet = (ObjectOpenHashSet<ByteArray>) valueSet;
         byte[][] bytesValues = blockValSet.getBytesValuesSV();
         for (int i = 0; i < length; i++) {
-          valueSet.add(new ByteArray(bytesValues[i]));
+          bytesSet.add(new ByteArray(bytesValues[i]));
         }
         break;
       default:
@@ -217,44 +225,49 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
     Set valueSet = getValueSet(aggregationResultHolder, storedType);
     switch (storedType) {
       case INT:
+        IntOpenHashSet intSet = (IntOpenHashSet) valueSet;
         int[][] intValues = blockValSet.getIntValuesMV();
         for (int i = 0; i < length; i++) {
           for (int value : intValues[i]) {
-            ((Set<Integer>)valueSet).add(value);
+            intSet.add(value);
           }
         }
         break;
       case LONG:
+        LongOpenHashSet longSet = (LongOpenHashSet) valueSet;
         long[][] longValues = blockValSet.getLongValuesMV();
         for (int i = 0; i < length; i++) {
           for (long value : longValues[i]) {
-            valueSet.add(value);
+            longSet.add(value);
           }
         }
         break;
       case FLOAT:
+        FloatOpenHashSet floatSet = (FloatOpenHashSet) valueSet;
         float[][] floatValues = blockValSet.getFloatValuesMV();
         for (int i = 0; i < length; i++) {
           for (float value : floatValues[i]) {
-            valueSet.add(value);
+            floatSet.add(value);
           }
         }
         break;
       case DOUBLE:
+        DoubleOpenHashSet doubleSet = (DoubleOpenHashSet) valueSet;
         double[][] doubleValues = blockValSet.getDoubleValuesMV();
         for (int i = 0; i < length; i++) {
           for (double value : doubleValues[i]) {
-            valueSet.add(value);
+            doubleSet.add(value);
           }
         }
         break;
       case STRING:
+        ObjectOpenHashSet<String> stringSet = (ObjectOpenHashSet<String>) valueSet;
         String[][] stringValues = blockValSet.getStringValuesMV();
         for (int i = 0; i < length; i++) {
           //noinspection ManualArrayToCollectionCopy
           for (String value : stringValues[i]) {
             //noinspection UseBulkOperation
-            valueSet.add(value);
+            stringSet.add(value);
           }
         }
         break;
@@ -287,38 +300,39 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case INT:
         int[] intValues = blockValSet.getIntValuesSV();
         for (int i = 0; i < length; i++) {
-          ((Set<Integer>)getValueSet(groupByResultHolder, groupKeyArray[i], DataType.INT)).add(intValues[i]);
+          ((IntOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.INT)).add(intValues[i]);
         }
         break;
       case LONG:
         long[] longValues = blockValSet.getLongValuesSV();
         for (int i = 0; i < length; i++) {
-          getValueSet(groupByResultHolder, groupKeyArray[i], DataType.LONG).add(longValues[i]);
+          ((LongOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.LONG)).add(longValues[i]);
         }
         break;
       case FLOAT:
         float[] floatValues = blockValSet.getFloatValuesSV();
         for (int i = 0; i < length; i++) {
-          getValueSet(groupByResultHolder, groupKeyArray[i], DataType.FLOAT).add(floatValues[i]);
+          ((FloatOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.FLOAT)).add(floatValues[i]);
         }
         break;
       case DOUBLE:
         double[] doubleValues = blockValSet.getDoubleValuesSV();
         for (int i = 0; i < length; i++) {
-          getValueSet(groupByResultHolder, groupKeyArray[i], DataType.DOUBLE).add(doubleValues[i]);
+          ((DoubleOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.DOUBLE)).add(
+              doubleValues[i]);
         }
         break;
       case STRING:
         String[] stringValues = blockValSet.getStringValuesSV();
         for (int i = 0; i < length; i++) {
-          getValueSet(groupByResultHolder, groupKeyArray[i], DataType.STRING).add(
+          ((ObjectOpenHashSet<String>) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.STRING)).add(
               stringValues[i]);
         }
         break;
       case BYTES:
         byte[][] bytesValues = blockValSet.getBytesValuesSV();
         for (int i = 0; i < length; i++) {
-          getValueSet(groupByResultHolder, groupKeyArray[i], DataType.BYTES).add(
+          ((ObjectOpenHashSet<ByteArray>) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.BYTES)).add(
               new ByteArray(bytesValues[i]));
         }
         break;
@@ -351,7 +365,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case INT:
         int[][] intValues = blockValSet.getIntValuesMV();
         for (int i = 0; i < length; i++) {
-          Set<Integer>  intSet = (Set<Integer>)getValueSet(groupByResultHolder, groupKeyArray[i], DataType.INT);
+          IntOpenHashSet intSet = (IntOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.INT);
           for (int value : intValues[i]) {
             intSet.add(value);
           }
@@ -360,7 +374,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case LONG:
         long[][] longValues = blockValSet.getLongValuesMV();
         for (int i = 0; i < length; i++) {
-          Set longSet = getValueSet(groupByResultHolder, groupKeyArray[i], DataType.LONG);
+          LongOpenHashSet longSet = (LongOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.LONG);
           for (long value : longValues[i]) {
             longSet.add(value);
           }
@@ -369,7 +383,8 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case FLOAT:
         float[][] floatValues = blockValSet.getFloatValuesMV();
         for (int i = 0; i < length; i++) {
-          Set floatSet = getValueSet(groupByResultHolder, groupKeyArray[i], DataType.FLOAT);
+          FloatOpenHashSet floatSet =
+              (FloatOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.FLOAT);
           for (float value : floatValues[i]) {
             floatSet.add(value);
           }
@@ -378,7 +393,8 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case DOUBLE:
         double[][] doubleValues = blockValSet.getDoubleValuesMV();
         for (int i = 0; i < length; i++) {
-         Set doubleSet = getValueSet(groupByResultHolder, groupKeyArray[i], DataType.DOUBLE);
+          DoubleOpenHashSet doubleSet =
+              (DoubleOpenHashSet) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.DOUBLE);
           for (double value : doubleValues[i]) {
             doubleSet.add(value);
           }
@@ -387,7 +403,8 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
       case STRING:
         String[][] stringValues = blockValSet.getStringValuesMV();
         for (int i = 0; i < length; i++) {
-          Set stringSet = getValueSet(groupByResultHolder, groupKeyArray[i], DataType.STRING);
+          ObjectOpenHashSet<String> stringSet =
+              (ObjectOpenHashSet<String>) getValueSet(groupByResultHolder, groupKeyArray[i], DataType.STRING);
           //noinspection ManualArrayToCollectionCopy
           for (String value : stringValues[i]) {
             //noinspection UseBulkOperation
@@ -489,7 +506,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
         int[][] intValues = blockValSet.getIntValuesMV();
         for (int i = 0; i < length; i++) {
           for (int groupKey : groupKeysArray[i]) {
-            Set<Integer> intSet = (Set<Integer>)getValueSet(groupByResultHolder, groupKey, DataType.INT);
+            IntOpenHashSet intSet = (IntOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.INT);
             for (int value : intValues[i]) {
               intSet.add(value);
             }
@@ -500,7 +517,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
         long[][] longValues = blockValSet.getLongValuesMV();
         for (int i = 0; i < length; i++) {
           for (int groupKey : groupKeysArray[i]) {
-            Set longSet = getValueSet(groupByResultHolder, groupKey, DataType.LONG);
+            LongOpenHashSet longSet = (LongOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.LONG);
             for (long value : longValues[i]) {
               longSet.add(value);
             }
@@ -511,7 +528,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
         float[][] floatValues = blockValSet.getFloatValuesMV();
         for (int i = 0; i < length; i++) {
           for (int groupKey : groupKeysArray[i]) {
-            Set floatSet = getValueSet(groupByResultHolder, groupKey, DataType.FLOAT);
+            FloatOpenHashSet floatSet = (FloatOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.FLOAT);
             for (float value : floatValues[i]) {
               floatSet.add(value);
             }
@@ -522,7 +539,8 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
         double[][] doubleValues = blockValSet.getDoubleValuesMV();
         for (int i = 0; i < length; i++) {
           for (int groupKey : groupKeysArray[i]) {
-          Set doubleSet = getValueSet(groupByResultHolder, groupKey, DataType.DOUBLE);
+            DoubleOpenHashSet doubleSet =
+                (DoubleOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.DOUBLE);
             for (double value : doubleValues[i]) {
               doubleSet.add(value);
             }
@@ -533,7 +551,8 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
         String[][] stringValues = blockValSet.getStringValuesMV();
         for (int i = 0; i < length; i++) {
           for (int groupKey : groupKeysArray[i]) {
-            Set stringSet = getValueSet(groupByResultHolder, groupKey, DataType.STRING);
+            ObjectOpenHashSet<String> stringSet =
+                (ObjectOpenHashSet<String>) getValueSet(groupByResultHolder, groupKey, DataType.STRING);
             //noinspection ManualArrayToCollectionCopy
             for (String value : stringValues[i]) {
               //noinspection UseBulkOperation
@@ -555,11 +574,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
     Set valueSet = aggregationResultHolder.getResult();
     if (valueSet == null) {
       valueSet = getValueSet(valueType);
-      try{
-        aggregationResultHolder.setValue(valueSet);
-      } catch (Exception e) {
-        throw new IllegalStateException("Illegal Type of value: Aggr SetFromMap error here");
-      }
+      aggregationResultHolder.setValue(valueSet);
     }
     return valueSet;
   }
@@ -568,11 +583,21 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    * Helper method to create a value set for the given value type.
    */
   private static Set getValueSet(DataType valueType) {
-    return _hashSetFactory.getHashSet(valueType);
-  }
-
-  private static Set getValueSet(DataType valueType, int size) {
-    return _hashSetFactory.getHashSet(valueType,size);
+    switch (valueType) {
+      case INT:
+        return new IntOpenHashSet();
+      case LONG:
+        return new LongOpenHashSet();
+      case FLOAT:
+        return new FloatOpenHashSet();
+      case DOUBLE:
+        return new DoubleOpenHashSet();
+      case STRING:
+      case BYTES:
+        return new ObjectOpenHashSet();
+      default:
+        throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function valueType");
+    }
   }
 
   /**
@@ -595,11 +620,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
     Set valueSet = groupByResultHolder.getResult(groupKey);
     if (valueSet == null) {
       valueSet = getValueSet(valueType);
-      try{
-        groupByResultHolder.setValueForKey(groupKey, valueSet);
-      } catch (Exception e) {
-        throw new IllegalStateException("Illegal Type of value: SetFromMap error here");
-      }
+      groupByResultHolder.setValueForKey(groupKey, valueSet);
     }
     return valueSet;
   }
@@ -619,7 +640,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, int value) {
     for (int groupKey : groupKeys) {
-      ((Set<Integer>)getValueSet(groupByResultHolder, groupKey, DataType.INT)).add(value);
+      ((IntOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.INT)).add(value);
     }
   }
 
@@ -628,7 +649,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, long value) {
     for (int groupKey : groupKeys) {
-      ((Set<Long>)getValueSet(groupByResultHolder, groupKey, DataType.LONG)).add(value);
+      ((LongOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.LONG)).add(value);
     }
   }
 
@@ -637,7 +658,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, float value) {
     for (int groupKey : groupKeys) {
-      getValueSet(groupByResultHolder, groupKey, DataType.FLOAT).add(value);
+      ((FloatOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.FLOAT)).add(value);
     }
   }
 
@@ -646,7 +667,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, double value) {
     for (int groupKey : groupKeys) {
-      getValueSet(groupByResultHolder, groupKey, DataType.DOUBLE).add(value);
+      ((DoubleOpenHashSet) getValueSet(groupByResultHolder, groupKey, DataType.DOUBLE)).add(value);
     }
   }
 
@@ -655,7 +676,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, String value) {
     for (int groupKey : groupKeys) {
-      getValueSet(groupByResultHolder, groupKey, DataType.STRING).add(value);
+      ((ObjectOpenHashSet<String>) getValueSet(groupByResultHolder, groupKey, DataType.STRING)).add(value);
     }
   }
 
@@ -664,7 +685,7 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
    */
   private static void setValueForGroupKeys(GroupByResultHolder groupByResultHolder, int[] groupKeys, ByteArray value) {
     for (int groupKey : groupKeys) {
-      getValueSet(groupByResultHolder, groupKey, DataType.BYTES).add(value);
+      ((ObjectOpenHashSet<ByteArray>) getValueSet(groupByResultHolder, groupKey, DataType.BYTES)).add(value);
     }
   }
 
@@ -679,37 +700,37 @@ public abstract class BaseDistinctAggregateAggregationFunction<T extends Compara
     DataType storedType = dictionary.getValueType();
     switch (storedType) {
       case INT:
-        Set<Integer> intSet = (Set<Integer>)getValueSet(DataType.INT,numValues);
+        IntOpenHashSet intSet = new IntOpenHashSet(numValues);
         while (iterator.hasNext()) {
           intSet.add(dictionary.getIntValue(iterator.next()));
         }
         return intSet;
       case LONG:
-        Set longSet = getValueSet(DataType.LONG,numValues);
+        LongOpenHashSet longSet = new LongOpenHashSet(numValues);
         while (iterator.hasNext()) {
           longSet.add(dictionary.getLongValue(iterator.next()));
         }
         return longSet;
       case FLOAT:
-        Set floatSet = getValueSet(DataType.FLOAT,numValues);
+        FloatOpenHashSet floatSet = new FloatOpenHashSet(numValues);
         while (iterator.hasNext()) {
           floatSet.add(dictionary.getFloatValue(iterator.next()));
         }
         return floatSet;
       case DOUBLE:
-        Set doubleSet = getValueSet(DataType.DOUBLE,numValues);
+        DoubleOpenHashSet doubleSet = new DoubleOpenHashSet(numValues);
         while (iterator.hasNext()) {
           doubleSet.add(dictionary.getDoubleValue(iterator.next()));
         }
         return doubleSet;
       case STRING:
-        Set stringSet = getValueSet(DataType.STRING,numValues);
+        ObjectOpenHashSet<String> stringSet = new ObjectOpenHashSet<>(numValues);
         while (iterator.hasNext()) {
           stringSet.add(dictionary.getStringValue(iterator.next()));
         }
         return stringSet;
       case BYTES:
-        Set bytesSet = getValueSet(DataType.BYTES,numValues);
+        ObjectOpenHashSet<ByteArray> bytesSet = new ObjectOpenHashSet<>(numValues);
         while (iterator.hasNext()) {
           bytesSet.add(new ByteArray(dictionary.getBytesValue(iterator.next())));
         }

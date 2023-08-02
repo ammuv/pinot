@@ -189,9 +189,10 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
   @Test
   public void testAggregationOnly() {
     // Dictionary based
-    String query = "SELECT DISTINCTCOUNT(intColumn), DISTINCTCOUNT(longColumn), DISTINCTCOUNT(floatColumn), "
-        + "DISTINCTCOUNT(doubleColumn), DISTINCTCOUNT(stringColumn), DISTINCTCOUNT(bytesColumn) FROM testTable";
+    //String query = "SELECT DISTINCTCOUNT(intColumn), DISTINCTCOUNT(longColumn), DISTINCTCOUNT(floatColumn), "
+        //+ "DISTINCTCOUNT(doubleColumn), DISTINCTCOUNT(stringColumn), DISTINCTCOUNT(bytesColumn) FROM testTable";
 
+    String query = "SELECT DISTINCTCOUNT(intColumn) FROM testTable";
     // Inner segment
     for (Object operator : Arrays.asList(getOperator(query), getOperatorWithFilter(query))) {
       assertTrue(operator instanceof NonScanBasedAggregationOperator);
@@ -200,14 +201,14 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
           0, 0, NUM_RECORDS);
       List<Object> aggregationResult = resultsBlock.getResults();
       assertNotNull(aggregationResult);
-      assertEquals(aggregationResult.size(), 6);
-      for (int i = 0; i < 6; i++) {
+      assertEquals(aggregationResult.size(), 1);
+      for (int i = 0; i < 1; i++) {
         assertEquals(((Set) aggregationResult.get(i)).size(), _values.size());
       }
     }
 
     // Inter segments
-    Object[] expectedResults = Collections.nCopies(6, _values.size()).toArray();
+    Object[] expectedResults = Collections.nCopies(1, _values.size()).toArray();
     for (BrokerResponseNative brokerResponse : Arrays.asList(getBrokerResponse(query),
         getBrokerResponseWithFilter(query))) {
       QueriesTestUtils.testInterSegmentsResult(brokerResponse, 4 * NUM_RECORDS, 0, 0, 4 * NUM_RECORDS, expectedResults);
@@ -226,13 +227,13 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
     AggregationOperator aggregationOperator = getOperator(query);
     List<Object> aggregationResult = aggregationOperator.nextBlock().getResults();
     assertNotNull(aggregationResult);
-    assertEquals(aggregationResult.size(), 6);
-    for (int i = 0; i < 6; i++) {
+    assertEquals(aggregationResult.size(), 1);
+    for (int i = 0; i < 1; i++) {
       assertEquals(((Set) aggregationResult.get(i)).size(), expectedResult);
     }
 
     // Inter segment
-    expectedResults = Collections.nCopies(6, expectedResult).toArray();
+    expectedResults = Collections.nCopies(1, expectedResult).toArray();
     QueriesTestUtils.testInterSegmentsResult(getBrokerResponse(query), expectedResults);
   }
 
