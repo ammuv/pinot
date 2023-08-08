@@ -1,110 +1,105 @@
 package org.apache.pinot.core.query.aggregation.utils;
 
-import it.unimi.dsi.fastutil.doubles.DoubleOpenHashSet;
-import it.unimi.dsi.fastutil.floats.FloatOpenHashSet;
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import java.util.HashMap;
 import java.util.Set;
+import org.apache.pinot.core.data.table.Record;
 import org.apache.pinot.spi.data.FieldSpec;
-import net.openhft.chronicle.set.ChronicleSetBuilder;
 
-public class HashSetFactory{
-  public HashMap<FieldSpec.DataType,String> _typeToSetMap; //Map for which default hashSet to use for each type
-  int _defaultSizeChronicleSet = 5000;
 
-  //todo add functions to allow change of map values
+/**
+ * There can be multiple possible (offheap and onheap) HashSetTypes such as OpenHashSet, ChronicleSet, ...
+ * HashSetFactory has: - enum of possible HashSet types - HashSetManager for each possible type - Mapping for which
+ * HashSet type will be used for each data type (this will be based on Config) HashSetFactory is used for: - obtaining
+ * new HashSets given a datatype - returning HashSetManagers
+ */
+public class HashSetFactory {
 
-  //default construct uses ChronicleSet for fixed size data types and OpenHashSet for others
-  public HashSetFactory(){
-    _typeToSetMap = new HashMap<FieldSpec.DataType, String>(6);
-    _typeToSetMap.put(FieldSpec.DataType.INT,"ChronicleSet");
-    _typeToSetMap.put(FieldSpec.DataType.LONG,"OpenHashSet");
-    _typeToSetMap.put(FieldSpec.DataType.FLOAT,"OpenHashSet");
-    _typeToSetMap.put(FieldSpec.DataType.DOUBLE,"OpenHashSet");
-    _typeToSetMap.put(FieldSpec.DataType.STRING,"OpenHashSet");
-    _typeToSetMap.put(FieldSpec.DataType.BYTES,"OpenHashSet");
+  /**
+   * Enum for possible HashSet types
+   */
+  enum HashSetType {
+    OpenHashSet, ChronicleSet, MapDBSet
   }
 
-  public Set getHashSet(FieldSpec.DataType valueType){
-    if(_typeToSetMap.containsKey(valueType)){
-      if(_typeToSetMap.get(valueType)=="ChronicleSet"){
-        return getChronicleHashSet(valueType,_defaultSizeChronicleSet);
-      }
-      else{
-        return getOpenHashSet(valueType);
-      }
-    }
-    else{
-        throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function Hash Set");
-    }
+  /**
+   * Map specifying which HashSet type to use for each data type
+   */
+  public HashMap<FieldSpec.DataType, HashSetType> _typeToSetMap;
+
+  /**
+   * Map storing the HashSetManagers for all the HashSetTypes
+   */
+  public HashMap<HashSetType, HashSetManager> _hashSetManagerMap;
+
+  public HashSetType _hashSetTypeForRecord;
+
+  // todo: use PinotConfig to configure DataType to HashSetTypes map
+  public HashSetFactory() {
+    _typeToSetMap = new HashMap<>(6);
+    HashSetType c = HashSetType.ChronicleSet;
+    HashSetType o = HashSetType.OpenHashSet;
+    HashSetType m = HashSetType.MapDBSet;
+
+    _typeToSetMap.put(FieldSpec.DataType.INT, m);
+    _typeToSetMap.put(FieldSpec.DataType.LONG, m);
+    _typeToSetMap.put(FieldSpec.DataType.FLOAT, m);
+    _typeToSetMap.put(FieldSpec.DataType.DOUBLE, m);
+    _typeToSetMap.put(FieldSpec.DataType.STRING, o);
+    _typeToSetMap.put(FieldSpec.DataType.BYTES, o);
+
+    _hashSetManagerMap = new HashMap<>(3);
+    _hashSetManagerMap.put(HashSetType.ChronicleSet, new ChronicleSetManager());
+    _hashSetManagerMap.put(HashSetType.OpenHashSet, new OpenHashSetManager());
+    _hashSetManagerMap.put(HashSetType.MapDBSet, new MapDBSetManager());
+    _hashSetTypeForRecord = HashSetType.ChronicleSet;
   }
 
-  public Set getHashSet(FieldSpec.DataType valueType, int size){
-    if(_typeToSetMap.containsKey(valueType)){
-      if(_typeToSetMap.get(valueType)=="ChronicleSet"){
-        return getChronicleHashSet(valueType,_defaultSizeChronicleSet);
-      }
-      else{
-        return getOpenHashSet(valueType,size);
-      }
-    }
-    else{
-      throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function Hash Set");
-    }
-  }
+  /**
+   * Returns a new hashSet for a given DataType
+   */
+  public Set getHashSet(FieldSpec.DataType valueType) {
 
-  Set getChronicleHashSet(FieldSpec.DataType valueType,int size) {
-    switch (valueType) {
-      case INT:
-        return ChronicleSetBuilder.of(Integer.class).entries(size).create();
-      case LONG:
-        return ChronicleSetBuilder.of(Long.class).entries(size).create();
-      case FLOAT:
-        return ChronicleSetBuilder.of(Float.class).entries(size).create();
-      case DOUBLE:
-        return ChronicleSetBuilder.of(Double.class).entries(size).create();
-      case STRING:
-      case BYTES:
-      default:
-        throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function Chronicle Hash Set - we use it only for fixed length data types");
-    }
-  }
-
-  Set getOpenHashSet(FieldSpec.DataType valueType,int size) {
-    switch (valueType) {
-      case INT:
-        return new IntOpenHashSet(size);
-      case LONG:
-        return new LongOpenHashSet(size);
-      case FLOAT:
-        return new FloatOpenHashSet(size);
-      case DOUBLE:
-        return new DoubleOpenHashSet(size);
-      case STRING:
-      case BYTES:
-        return new ObjectOpenHashSet(size);
-      default:
-        throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function getOpenHashSet");
+    if (_typeToSetMap.containsKey(valueType)) {
+      HashSetManager hm = _hashSetManagerMap.get(_typeToSetMap.get(valueType));
+      return hm.getHashSet(valueType);
+    } else {
+      throw new IllegalStateException("Illegal data type for Hash Set " + valueType);
     }
   }
 
-  Set getOpenHashSet(FieldSpec.DataType valueType) {
-    switch (valueType) {
-      case INT:
-        return new IntOpenHashSet();
-      case LONG:
-        return new LongOpenHashSet();
-      case FLOAT:
-        return new FloatOpenHashSet();
-      case DOUBLE:
-        return new DoubleOpenHashSet();
-      case STRING:
-      case BYTES:
-        return new ObjectOpenHashSet();
-      default:
-        throw new IllegalStateException("Illegal data type for DISTINCT_AGGREGATE aggregation function getOpenHashSet");
+  /**
+   * Returns a new hashSet of a specified size for a given DataType
+   */
+  public Set getHashSet(FieldSpec.DataType valueType, int size) {
+    if (_typeToSetMap.containsKey(valueType)) {
+      HashSetManager hm = _hashSetManagerMap.get(_typeToSetMap.get(valueType));
+      return hm.getHashSet(valueType,size);
+    } else {
+      throw new IllegalStateException("Illegal data type for Hash Set " + valueType);
     }
   }
+
+  /**
+   * Returns the stored HashSetManager for the HashSet type corresponding to a given data type
+   */
+  public HashSetManager getHasHSetManager(FieldSpec.DataType valueType) {
+    if (_typeToSetMap.containsKey(valueType)) {
+      return _hashSetManagerMap.get(_typeToSetMap.get(valueType));
+    } else {
+      throw new IllegalStateException("Illegal data type for Hash Set" + valueType);
+    }
+  }
+
+  /**
+   *  Returns a new hashSet with keys as Records of a specified size
+   *  If the parameter isOpenHashSet is true, it returns OpenHashSet
+   *  Otherwise it returns the HashSet according to the configured _hashSetTypeForRecord
+   */
+  public Set<Record> getRecordHashSet(boolean isOpenHashSet,int size){
+    if(isOpenHashSet)
+      return _hashSetManagerMap.get(HashSetType.OpenHashSet).getRecordHashSet(size);
+    else
+      return _hashSetManagerMap.get(_hashSetTypeForRecord).getRecordHashSet(size);
+  }
+
 }

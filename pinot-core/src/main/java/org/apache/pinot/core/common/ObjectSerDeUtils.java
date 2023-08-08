@@ -1,20 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.  See the NOTICE
+ * file distributed with this work for additional information regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 package org.apache.pinot.core.common;
 
@@ -54,20 +48,19 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.openhft.chronicle.set.ChronicleSet;
-import net.openhft.chronicle.set.ChronicleSetBuilder;
 import org.apache.datasketches.kll.KllDoublesSketch;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.theta.Sketch;
 import org.apache.datasketches.tuple.aninteger.IntegerSummary;
 import org.apache.datasketches.tuple.aninteger.IntegerSummaryDeserializer;
 import org.apache.pinot.common.CustomObject;
+import org.apache.pinot.core.query.aggregation.utils.ChronicleSetManager;
 import org.apache.pinot.core.query.aggregation.utils.argminmax.ArgMinMaxObject;
+import org.apache.pinot.core.query.aggregation.utils.MapDBSetManager;
 import org.apache.pinot.core.query.distinct.DistinctTable;
 import org.apache.pinot.core.query.utils.idset.IdSet;
 import org.apache.pinot.core.query.utils.idset.IdSets;
@@ -86,8 +79,8 @@ import org.apache.pinot.segment.local.utils.GeometrySerializer;
 import org.apache.pinot.spi.utils.BigDecimalUtils;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.locationtech.jts.geom.Geometry;
+import org.mapdb.HTreeMap;
 import org.roaringbitmap.RoaringBitmap;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 
@@ -96,6 +89,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ObjectSerDeUtils {
+
+  public static final MapDBSetManager _mapDBSetManager = new MapDBSetManager();
   private ObjectSerDeUtils() {
   }
 
@@ -139,7 +134,8 @@ public class ObjectSerDeUtils {
     ArgMinMaxObject(35),
     KllDataSketch(36),
     IntegerTupleSketch(37),
-    Set(38);
+    ChronicleSet(38),
+    MapDBSet(39);
 
     private final int _value;
 
@@ -231,8 +227,10 @@ public class ObjectSerDeUtils {
         return ObjectType.IntegerTupleSketch;
       } else if (value instanceof ArgMinMaxObject) {
         return ObjectType.ArgMinMaxObject;
-      } else if (value instanceof Set) { //for now just has ChronicleSet<Integer> need to extend to other fixed length data types
-        return ObjectType.Set;
+      } else if (value instanceof ChronicleSet) {
+        return ObjectType.ChronicleSet;
+      } else if (value instanceof HTreeMap.KeySet) {
+        return ObjectType.MapDBSet;
       } else {
         throw new IllegalArgumentException("Unsupported type of value: " + value.getClass().getSimpleName());
       }
@@ -507,23 +505,23 @@ public class ObjectSerDeUtils {
     }
   };
 
-  public static final ObjectSerDe<PinotFourthMoment> PINOT_FOURTH_MOMENT_OBJECT_SER_DE
-      = new ObjectSerDe<PinotFourthMoment>() {
-    @Override
-    public byte[] serialize(PinotFourthMoment value) {
-      return value.serialize();
-    }
+  public static final ObjectSerDe<PinotFourthMoment> PINOT_FOURTH_MOMENT_OBJECT_SER_DE =
+      new ObjectSerDe<PinotFourthMoment>() {
+        @Override
+        public byte[] serialize(PinotFourthMoment value) {
+          return value.serialize();
+        }
 
-    @Override
-    public PinotFourthMoment deserialize(byte[] bytes) {
-      return PinotFourthMoment.fromBytes(bytes);
-    }
+        @Override
+        public PinotFourthMoment deserialize(byte[] bytes) {
+          return PinotFourthMoment.fromBytes(bytes);
+        }
 
-    @Override
-    public PinotFourthMoment deserialize(ByteBuffer byteBuffer) {
-      return PinotFourthMoment.fromBytes(byteBuffer);
-    }
-  };
+        @Override
+        public PinotFourthMoment deserialize(ByteBuffer byteBuffer) {
+          return PinotFourthMoment.fromBytes(byteBuffer);
+        }
+      };
 
   public static final ObjectSerDe<HyperLogLog> HYPER_LOG_LOG_SER_DE = new ObjectSerDe<HyperLogLog>() {
 
@@ -1261,112 +1259,110 @@ public class ObjectSerDeUtils {
     }
   };
 
-  public static final ObjectSerDe<ArgMinMaxObject> ARG_MIN_MAX_OBJECT_SER_DE =
-      new ObjectSerDe<ArgMinMaxObject>() {
+  public static final ObjectSerDe<ArgMinMaxObject> ARG_MIN_MAX_OBJECT_SER_DE = new ObjectSerDe<ArgMinMaxObject>() {
 
-        @Override
-        public byte[] serialize(ArgMinMaxObject value) {
-          try {
-            return value.toBytes();
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
+    @Override
+    public byte[] serialize(ArgMinMaxObject value) {
+      try {
+        return value.toBytes();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
 
-        @Override
-        public ArgMinMaxObject deserialize(byte[] bytes) {
-          try {
-            return ArgMinMaxObject.fromBytes(bytes);
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
+    @Override
+    public ArgMinMaxObject deserialize(byte[] bytes) {
+      try {
+        return ArgMinMaxObject.fromBytes(bytes);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
 
-        @Override
-        public ArgMinMaxObject deserialize(ByteBuffer byteBuffer) {
-          try {
-            return ArgMinMaxObject.fromByteBuffer(byteBuffer);
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
-      };
+    @Override
+    public ArgMinMaxObject deserialize(ByteBuffer byteBuffer) {
+      try {
+        return ArgMinMaxObject.fromByteBuffer(byteBuffer);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  };
 
+  public static final ObjectSerDe<Set> CHRONICLESET_SER_DE = new ObjectSerDe<Set>() {
 
-  public static final ObjectSerDe<Set> SET_SER_DE = new ObjectSerDe<Set>() {
+    public final ChronicleSetManager _chronicleSetManager = new ChronicleSetManager();
+
     @Override
     public byte[] serialize(Set set) {
-      Set<Integer> intSet = (Set<Integer>) set;
-      int size = intSet.size();
-      byte[] bytes = new byte[Integer.BYTES + size * Integer.BYTES];
-      ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-      byteBuffer.putInt(size);
-      Iterator<Integer> iterator = intSet.iterator();
-      while (iterator.hasNext()) {
-        byteBuffer.putInt(iterator.next());
+      try {
+        return _chronicleSetManager.toBytes(set);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while serializing ChronicleSet", e);
       }
-      return bytes;
     }
 
     @Override
     public Set deserialize(byte[] bytes) {
-      return deserialize(ByteBuffer.wrap(bytes));
+      try {
+        return _chronicleSetManager.fromByteBuffer(ByteBuffer.wrap(bytes));
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing ChronicleSet", e);
+      }
     }
 
     @Override
     public Set deserialize(ByteBuffer byteBuffer) {
-      int size = byteBuffer.getInt();
-      Set<Integer> intSet = ChronicleSetBuilder.of(Integer.class).entries(5000).create();
-      for (int i = 0; i < size; i++) {
-        intSet.add(byteBuffer.getInt());
+      try {
+        return _chronicleSetManager.fromByteBuffer(byteBuffer);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing ChronicleSet", e);
       }
-      return intSet;
     }
   };
 
+  public static final ObjectSerDe<Set> MAPDBSET_SER_DE = new ObjectSerDe<Set>() {
+
+    @Override
+    public byte[] serialize(Set set) {
+      try {
+        return _mapDBSetManager.toBytes(set);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while serializing MapDBSet", e);
+      }
+    }
+
+    @Override
+    public Set deserialize(byte[] bytes) {
+      try {
+        return _mapDBSetManager.fromByteBuffer(ByteBuffer.wrap(bytes));
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing MapDBSet", e);
+      }
+    }
+
+    @Override
+    public Set deserialize(ByteBuffer byteBuffer) {
+      try {
+        return _mapDBSetManager.fromByteBuffer(byteBuffer);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing MapDBSet", e);
+      }
+    }
+  };
 
   // NOTE: DO NOT change the order, it has to be the same order as the ObjectType
   //@formatter:off
   private static final ObjectSerDe[] SER_DES = {
-      STRING_SER_DE,
-      LONG_SER_DE,
-      DOUBLE_SER_DE,
-      DOUBLE_ARRAY_LIST_SER_DE,
-      AVG_PAIR_SER_DE,
-      MIN_MAX_RANGE_PAIR_SER_DE,
-      HYPER_LOG_LOG_SER_DE,
-      QUANTILE_DIGEST_SER_DE,
-      MAP_SER_DE,
-      INT_SET_SER_DE,
-      TDIGEST_SER_DE,
-      DISTINCT_TABLE_SER_DE,
-      DATA_SKETCH_SER_DE,
-      GEOMETRY_SER_DE,
-      ROARING_BITMAP_SER_DE,
-      LONG_SET_SER_DE,
-      FLOAT_SET_SER_DE,
-      DOUBLE_SET_SER_DE,
-      STRING_SET_SER_DE,
-      BYTES_SET_SER_DE,
-      ID_SET_SER_DE,
-      LIST_SER_DE,
-      BIGDECIMAL_SER_DE,
-      INT_2_LONG_MAP_SER_DE,
-      LONG_2_LONG_MAP_SER_DE,
-      FLOAT_2_LONG_MAP_SER_DE,
-      DOUBLE_2_LONG_MAP_SER_DE,
-      INT_LONG_PAIR_SER_DE,
-      LONG_LONG_PAIR_SER_DE,
-      FLOAT_LONG_PAIR_SER_DE,
-      DOUBLE_LONG_PAIR_SER_DE,
-      STRING_LONG_PAIR_SER_DE,
-      COVARIANCE_TUPLE_OBJECT_SER_DE,
-      VARIANCE_TUPLE_OBJECT_SER_DE,
-      PINOT_FOURTH_MOMENT_OBJECT_SER_DE,
-      ARG_MIN_MAX_OBJECT_SER_DE,
-      KLL_SKETCH_SER_DE,
-      DATA_SKETCH_INT_TUPLE_SER_DE,
-      SET_SER_DE,
+      STRING_SER_DE, LONG_SER_DE, DOUBLE_SER_DE, DOUBLE_ARRAY_LIST_SER_DE, AVG_PAIR_SER_DE, MIN_MAX_RANGE_PAIR_SER_DE
+      , HYPER_LOG_LOG_SER_DE, QUANTILE_DIGEST_SER_DE, MAP_SER_DE, INT_SET_SER_DE, TDIGEST_SER_DE,
+      DISTINCT_TABLE_SER_DE, DATA_SKETCH_SER_DE, GEOMETRY_SER_DE, ROARING_BITMAP_SER_DE, LONG_SET_SER_DE,
+      FLOAT_SET_SER_DE, DOUBLE_SET_SER_DE, STRING_SET_SER_DE, BYTES_SET_SER_DE, ID_SET_SER_DE, LIST_SER_DE,
+      BIGDECIMAL_SER_DE, INT_2_LONG_MAP_SER_DE, LONG_2_LONG_MAP_SER_DE, FLOAT_2_LONG_MAP_SER_DE,
+      DOUBLE_2_LONG_MAP_SER_DE, INT_LONG_PAIR_SER_DE, LONG_LONG_PAIR_SER_DE, FLOAT_LONG_PAIR_SER_DE,
+      DOUBLE_LONG_PAIR_SER_DE, STRING_LONG_PAIR_SER_DE, COVARIANCE_TUPLE_OBJECT_SER_DE, VARIANCE_TUPLE_OBJECT_SER_DE,
+      PINOT_FOURTH_MOMENT_OBJECT_SER_DE, ARG_MIN_MAX_OBJECT_SER_DE, KLL_SKETCH_SER_DE, DATA_SKETCH_INT_TUPLE_SER_DE,
+      CHRONICLESET_SER_DE, MAPDBSET_SER_DE,
   };
   //@formatter:on
 

@@ -1,20 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.  See the NOTICE
+ * file distributed with this work for additional information regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 package org.apache.pinot.queries;
 
@@ -189,10 +183,9 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
   @Test
   public void testAggregationOnly() {
     // Dictionary based
-    //String query = "SELECT DISTINCTCOUNT(intColumn), DISTINCTCOUNT(longColumn), DISTINCTCOUNT(floatColumn), "
-        //+ "DISTINCTCOUNT(doubleColumn), DISTINCTCOUNT(stringColumn), DISTINCTCOUNT(bytesColumn) FROM testTable";
+    String query = "SELECT DISTINCTCOUNT(intColumn), DISTINCTCOUNT(longColumn), DISTINCTCOUNT(floatColumn), "
+        + "DISTINCTCOUNT(doubleColumn), DISTINCTCOUNT(stringColumn), DISTINCTCOUNT(bytesColumn) FROM testTable";
 
-    String query = "SELECT DISTINCTCOUNT(intColumn) FROM testTable";
     // Inner segment
     for (Object operator : Arrays.asList(getOperator(query), getOperatorWithFilter(query))) {
       assertTrue(operator instanceof NonScanBasedAggregationOperator);
@@ -201,14 +194,14 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
           0, 0, NUM_RECORDS);
       List<Object> aggregationResult = resultsBlock.getResults();
       assertNotNull(aggregationResult);
-      assertEquals(aggregationResult.size(), 1);
-      for (int i = 0; i < 1; i++) {
+      assertEquals(aggregationResult.size(), 6);
+      for (int i = 0; i < 6; i++) {
         assertEquals(((Set) aggregationResult.get(i)).size(), _values.size());
       }
     }
 
     // Inter segments
-    Object[] expectedResults = Collections.nCopies(1, _values.size()).toArray();
+    Object[] expectedResults = Collections.nCopies(6, _values.size()).toArray();
     for (BrokerResponseNative brokerResponse : Arrays.asList(getBrokerResponse(query),
         getBrokerResponseWithFilter(query))) {
       QueriesTestUtils.testInterSegmentsResult(brokerResponse, 4 * NUM_RECORDS, 0, 0, 4 * NUM_RECORDS, expectedResults);
@@ -227,18 +220,19 @@ public class DistinctCountQueriesTest extends BaseQueriesTest {
     AggregationOperator aggregationOperator = getOperator(query);
     List<Object> aggregationResult = aggregationOperator.nextBlock().getResults();
     assertNotNull(aggregationResult);
-    assertEquals(aggregationResult.size(), 1);
-    for (int i = 0; i < 1; i++) {
+    assertEquals(aggregationResult.size(), 6);
+    for (int i = 0; i < 6; i++) {
       assertEquals(((Set) aggregationResult.get(i)).size(), expectedResult);
     }
 
     // Inter segment
-    expectedResults = Collections.nCopies(1, expectedResult).toArray();
+    expectedResults = Collections.nCopies(6, expectedResult).toArray();
     QueriesTestUtils.testInterSegmentsResult(getBrokerResponse(query), expectedResults);
   }
 
   @Test
   public void testAggregationGroupBy() {
+
     String query = "SELECT DISTINCTCOUNT(intColumn), DISTINCTCOUNT(longColumn), DISTINCTCOUNT(floatColumn), "
         + "DISTINCTCOUNT(doubleColumn), DISTINCTCOUNT(stringColumn), DISTINCTCOUNT(bytesColumn) "
         + "FROM testTable GROUP BY intColumn";
