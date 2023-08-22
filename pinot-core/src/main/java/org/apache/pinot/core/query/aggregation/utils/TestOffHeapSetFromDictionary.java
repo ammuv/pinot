@@ -166,14 +166,17 @@ public class TestOffHeapSetFromDictionary {
     }
 
     @Test
-    public void checkMemoryUsageInt() {
+    public void checkMemoryUsageInt()
+        throws InterruptedException {
       gbToKeys();
+      List<BufferPoolMXBean> pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
       System.out.println("Initial Heap Memory:" +  toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()));
       for (int i = 0; i < 5; i++) {
         System.out.println("\n \n ************************ Iteration " + i + " Keys " +_numIntKeys[i] + " GB " + _gb[i] + "*****************************");
         //System.out.println("OffHeap Memory for Chronicle Set " + toGB(set.offHeapMemoryUsed())); //offHeapMemory
 
-        List<BufferPoolMXBean> pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+        System.gc();
+        Thread.sleep(30000);
         System.out.println("Initial Heap Memory:" +  toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()));
         //System.out.println("OffHeap Memory before loading " + toMB(intSet._dict.getTotalOffHeapMemUsed())); //offHeapMemory
         for (BufferPoolMXBean pool : pools) {
@@ -186,11 +189,13 @@ public class TestOffHeapSetFromDictionary {
 
         IntOffHeapSetFromDictionary intSet = new IntOffHeapSetFromDictionary(1000000, 0, _memoryManager, null);
 
-        // populate sets for iterator and contains workloads
+        // populate set
         for (int value = 0; value < _numIntKeys[i]; ++value) {
           intSet.add(value);
         }
 
+        System.gc();
+        Thread.sleep(30000);
         System.out.println("-------After loading-----------------");
         System.out.println("Heap Memory: " +  toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())); //heap memory
         System.out.println("OffHeap Memory after loading " + toMB(intSet._dict.getTotalOffHeapMemUsed())); //offHeapMemory
@@ -207,21 +212,23 @@ public class TestOffHeapSetFromDictionary {
     }
 
   @Test
-  public void checkMemoryUsageString() {
+  public void checkMemoryUsageString()
+      throws InterruptedException {
     gbToKeys();
 
     RandomUtils random = new RandomUtils();
     Set<String> stringSetKeys = new HashSet<>(_numVarKeys[4]);
     random.buildStringSetRandomRangeExact(stringSetKeys,_numVarKeys[4],_avgKeyLen); // only 1GB worth of keys
 
+    List<BufferPoolMXBean> pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+
     System.out.println("Stringg Initial Heap Memory:" + toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()));
     for (int i = 0; i < 5; i++) {
       System.out.println("\n \n ******************* Iteration " + i + " Keys " +_numVarKeys[i] + " GB " + _gb[i] +"*********************");
       //System.out.println("OffHeap Memory for Chronicle Set " + toGB(set.offHeapMemoryUsed())); //offHeapMemory
 
-     //
-      // load Set
-      List<BufferPoolMXBean> pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+      System.gc();
+      Thread.sleep(30000);
       System.out.println("Initial Heap Memory:" +  toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()));
       //System.out.println("OffHeap Memory before loading " + toMB(set._dict.getTotalOffHeapMemUsed())); //offHeapMemory
       for (BufferPoolMXBean pool : pools) {
@@ -236,6 +243,8 @@ public class TestOffHeapSetFromDictionary {
 
       random.CopyFromSet(stringSetKeys,set,_numVarKeys[i]); // load keys
 
+      System.gc();
+      Thread.sleep(30000);
       System.out.println("-------After loading-----------------");
       System.out.println("Heap Memory: " +  toMB(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())); //heap memory
       System.out.println("OffHeap Memory after loading " + toMB(set._dict.getTotalOffHeapMemUsed())); //offHeapMemory
