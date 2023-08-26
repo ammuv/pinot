@@ -1,14 +1,20 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.  See the NOTICE
- * file distributed with this work for additional information regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
- * License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.pinot.core.common;
 
@@ -58,9 +64,17 @@ import org.apache.datasketches.theta.Sketch;
 import org.apache.datasketches.tuple.aninteger.IntegerSummary;
 import org.apache.datasketches.tuple.aninteger.IntegerSummaryDeserializer;
 import org.apache.pinot.common.CustomObject;
+import org.apache.pinot.core.query.aggregation.utils.BytesOffHeapSetFromDictionary;
 import org.apache.pinot.core.query.aggregation.utils.ChronicleSetManager;
-import org.apache.pinot.core.query.aggregation.utils.argminmax.ArgMinMaxObject;
+import org.apache.pinot.core.query.aggregation.utils.DoubleOffHeapSetFromDictionary;
+import org.apache.pinot.core.query.aggregation.utils.FloatOffHeapSetFromDictionary;
+import org.apache.pinot.core.query.aggregation.utils.HashSetManager;
+import org.apache.pinot.core.query.aggregation.utils.IntOffHeapSetFromDictionary;
+import org.apache.pinot.core.query.aggregation.utils.LongOffHeapSetFromDictionary;
 import org.apache.pinot.core.query.aggregation.utils.MapDBSetManager;
+import org.apache.pinot.core.query.aggregation.utils.SetFromDictionaryManager;
+import org.apache.pinot.core.query.aggregation.utils.StringOffHeapSetFromDictionary;
+import org.apache.pinot.core.query.aggregation.utils.argminmax.ArgMinMaxObject;
 import org.apache.pinot.core.query.distinct.DistinctTable;
 import org.apache.pinot.core.query.utils.idset.IdSet;
 import org.apache.pinot.core.query.utils.idset.IdSets;
@@ -81,6 +95,7 @@ import org.apache.pinot.spi.utils.ByteArray;
 import org.locationtech.jts.geom.Geometry;
 import org.mapdb.HTreeMap;
 import org.roaringbitmap.RoaringBitmap;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 
@@ -91,6 +106,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class ObjectSerDeUtils {
 
   public static final MapDBSetManager _mapDBSetManager = new MapDBSetManager();
+
+  public static final SetFromDictionaryManager _dictSetManager = new SetFromDictionaryManager();
+
   private ObjectSerDeUtils() {
   }
 
@@ -135,7 +153,13 @@ public class ObjectSerDeUtils {
     KllDataSketch(36),
     IntegerTupleSketch(37),
     ChronicleSet(38),
-    MapDBSet(39);
+    MapDBSet(39),
+    IntDictSet(40),
+    LongDictSet(41),
+    FloatDictSet(42),
+    DoubleDictSet(43),
+    StringDictSet(44),
+    BytesDictSet(45);
 
     private final int _value;
 
@@ -231,6 +255,18 @@ public class ObjectSerDeUtils {
         return ObjectType.ChronicleSet;
       } else if (value instanceof HTreeMap.KeySet) {
         return ObjectType.MapDBSet;
+      } else if (value instanceof IntOffHeapSetFromDictionary) {
+        return ObjectType.IntDictSet;
+      } else if (value instanceof LongOffHeapSetFromDictionary) {
+        return ObjectType.LongDictSet;
+      } else if (value instanceof FloatOffHeapSetFromDictionary) {
+        return ObjectType.FloatDictSet;
+      } else if (value instanceof DoubleOffHeapSetFromDictionary) {
+        return ObjectType.DoubleDictSet;
+      } else if (value instanceof StringOffHeapSetFromDictionary) {
+        return ObjectType.StringDictSet;
+      } else if (value instanceof BytesOffHeapSetFromDictionary) {
+        return ObjectType.BytesDictSet;
       } else {
         throw new IllegalArgumentException("Unsupported type of value: " + value.getClass().getSimpleName());
       }
@@ -1351,6 +1387,56 @@ public class ObjectSerDeUtils {
     }
   };
 
+  /**
+   * Serializer/De-serializer for Off Heap Set from Dict based on keyType
+   */
+  public static class DictSetSerDe implements ObjectSerDe<Set> {
+    public HashSetManager.SerDataType _keyType; // used for serialization
+
+    DictSetSerDe(HashSetManager.SerDataType keyType) {
+      _keyType = keyType;
+    }
+
+    @Override
+    public byte[] serialize(Set set) {
+      try {
+        return _dictSetManager.toBytes(set, _keyType);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while serializing ChronicleSet", e);
+      }
+    }
+
+    @Override
+    public Set deserialize(byte[] bytes) {
+      try {
+        return _dictSetManager.fromByteBuffer(ByteBuffer.wrap(bytes));
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing ChronicleSet", e);
+      }
+    }
+
+    @Override
+    public Set deserialize(ByteBuffer byteBuffer) {
+      try {
+        return _dictSetManager.fromByteBuffer(byteBuffer);
+      } catch (Exception e) {
+        throw new IllegalStateException("Caught exception while de-serializing ChronicleSet", e);
+      }
+    }
+  }
+
+  public static final ObjectSerDe<Set> INTDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.Integer);
+
+  public static final ObjectSerDe<Set> LONGDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.Long);
+
+  public static final ObjectSerDe<Set> FLOATDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.Float);
+
+  public static final ObjectSerDe<Set> DOUBLEDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.Double);
+
+  public static final ObjectSerDe<Set> STRINGDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.String);
+
+  public static final ObjectSerDe<Set> BYTESDICTSET_SER_DE = new DictSetSerDe(HashSetManager.SerDataType.Bytes);
+
   // NOTE: DO NOT change the order, it has to be the same order as the ObjectType
   //@formatter:off
   private static final ObjectSerDe[] SER_DES = {
@@ -1362,7 +1448,8 @@ public class ObjectSerDeUtils {
       DOUBLE_2_LONG_MAP_SER_DE, INT_LONG_PAIR_SER_DE, LONG_LONG_PAIR_SER_DE, FLOAT_LONG_PAIR_SER_DE,
       DOUBLE_LONG_PAIR_SER_DE, STRING_LONG_PAIR_SER_DE, COVARIANCE_TUPLE_OBJECT_SER_DE, VARIANCE_TUPLE_OBJECT_SER_DE,
       PINOT_FOURTH_MOMENT_OBJECT_SER_DE, ARG_MIN_MAX_OBJECT_SER_DE, KLL_SKETCH_SER_DE, DATA_SKETCH_INT_TUPLE_SER_DE,
-      CHRONICLESET_SER_DE, MAPDBSET_SER_DE,
+      CHRONICLESET_SER_DE, MAPDBSET_SER_DE, INTDICTSET_SER_DE, LONGDICTSET_SER_DE, FLOATDICTSET_SER_DE,
+      DOUBLEDICTSET_SER_DE, STRINGDICTSET_SER_DE, BYTESDICTSET_SER_DE,
   };
   //@formatter:on
 

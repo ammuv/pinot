@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.pinot.core.query.aggregation.utils;
 
 import com.google.common.base.Preconditions;
@@ -114,34 +132,23 @@ public interface HashSetManager {
     }
   }
 
-
   /**
    * Serializes a HashSet into a byte array.
    */
-  public default byte[] toBytes(Set set) {
-    int size = set.size();
+  default public byte[] toBytes(Set set) {
+    throw new IllegalStateException("serialization not supported");
+  }
 
-    //Directly return the size (0) for empty set
-    if (size == 0) {
-      return new byte[Integer.BYTES];
-    }
-
-    // Besides the value bytes, we store: size, key type and length for each key
-    Object key = set.iterator().next();
-    if (key instanceof Integer){
-      return toBytesFixedLengthType(set,HashSetManager.SerDataType.Integer);
-    } else if(key instanceof Long){
-      return toBytesFixedLengthType(set,HashSetManager.SerDataType.Long);
-    } else if(key instanceof Float){
-      return toBytesFixedLengthType(set,HashSetManager.SerDataType.Float);
-    } else if(key instanceof Double){
-      return toBytesFixedLengthType(set,HashSetManager.SerDataType.Double);
-    } else if (key instanceof String) {
+  public default byte[] toBytes(Set set, HashSetManager.SerDataType keyType) {
+    if (keyType == SerDataType.Integer || keyType == SerDataType.Long || keyType == SerDataType.Float
+        || keyType == SerDataType.Double) {
+      return toBytesFixedLengthType(set, keyType);
+    } else if (keyType == SerDataType.String) {
       return toBytesString((Set<String>) set);
-    } else if (key instanceof byte[]) {
+    } else if (keyType == SerDataType.Bytes) {
       return toBytesByteArray((Set<byte[]>) set);
     } else {
-      throw new IllegalStateException("Key Type of Chronicle Hash Set not supported for serialization" + key.getClass());
+      throw new IllegalStateException("Key Type of Chronicle Hash Set not supported for serialization" + keyType);
     }
   }
 
@@ -203,7 +210,7 @@ public interface HashSetManager {
   /**
    * Helper function: Serializes Set of fixed length types (int,long,float,double) into a byte array.
    */
-  private byte[] toBytesFixedLengthType(Set set,SerDataType keyType) {
+  private byte[] toBytesFixedLengthType(Set set, SerDataType keyType) {
     int size = set.size();
     byte[] bytes;
 
@@ -322,5 +329,4 @@ public interface HashSetManager {
     }
     return bytes;
   }
-
 }

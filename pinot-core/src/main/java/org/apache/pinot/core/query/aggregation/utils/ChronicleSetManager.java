@@ -1,15 +1,28 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.pinot.core.query.aggregation.utils;
 
-import com.google.common.base.Preconditions;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.Set;
 import net.openhft.chronicle.set.ChronicleSet;
 import net.openhft.chronicle.set.ChronicleSetBuilder;
 import org.apache.pinot.core.data.table.Record;
 import org.apache.pinot.spi.data.FieldSpec;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 
 /**
@@ -51,10 +64,33 @@ public class ChronicleSetManager implements HashSetManager {
   public Set getHashSet(FieldSpec.DataType valueType) {
     return getHashSet(valueType, _defaultSizeChronicleSet);
   }
+
   @Override
   public Set<Record> getRecordHashSet(int size) {
     size = _defaultSizeChronicleSet; //we want to ensure that the set can grow
     return ChronicleSetBuilder.of(Record.class).averageKeySize(_defaultAvgKeySize).entries(size).create();
   }
 
+  @Override
+  public byte[] toBytes(Set set) {
+
+    ChronicleSet cset = (ChronicleSet) set;
+
+    // Besides the value bytes, we store: size, key type and length for each key
+    if (cset.keyType().equals(Integer.class)) {
+      return toBytes(set, HashSetManager.SerDataType.Integer);
+    } else if (cset.keyType().equals(Long.class)) {
+      return toBytes(set, HashSetManager.SerDataType.Long);
+    } else if (cset.keyType().equals(Float.class)) {
+      return toBytes(set, HashSetManager.SerDataType.Float);
+    } else if (cset.keyType().equals(Double.class)) {
+      return toBytes(set, HashSetManager.SerDataType.Double);
+    } else if (cset.keyType().equals(String.class)) {
+      return toBytes(set, HashSetManager.SerDataType.String);
+    } else if (cset.keyType().equals(byte[].class)) {
+      return toBytes(set, SerDataType.Bytes);
+    } else {
+      throw new IllegalStateException("Key Type of Hash Set not supported for serialization" + cset.keyClass());
+    }
+  }
 }
